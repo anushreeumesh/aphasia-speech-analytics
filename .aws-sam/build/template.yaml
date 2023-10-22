@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SAM Template for Aphasia Speech Analytics Serverless App
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 1024
+    Architectures:
+    - x86_64
+    Runtime: python3.11
+Resources:
+  TranscribeAphasiaAudio:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: TranscribeAphasiaAudio
+      Handler: app.lambda_handler
+      FunctionName: transcribe-aphasia-audio
+      Events:
+        S3Event:
+          Type: S3
+          Properties:
+            Bucket:
+              Ref: AphasiaAudioUploads
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                - Name: suffix
+                  Value: .wav
+      Policies:
+      - AWSLambdaBasicExecutionRole
+      - arn:aws:iam::aws:policy/AmazonTranscribeFullAccess
+      - arn:aws-cn:iam::aws:policy/AmazonDynamoDBFullAccess
+      - arn:aws-cn:iam::aws:policy/AmazonS3FullAccess
+    Metadata:
+      SamResourceId: TranscribeAphasiaAudio
+  ParseAphasiaAudioTranscript:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ParseAphasiaAudioTranscript
+      Handler: app.lambda_handler
+      FunctionName: parse-aphasia-audio-transcript
+      Layers:
+      - Ref: LatestBoto3Layer
+      Events:
+        S3Event:
+          Type: S3
+          Properties:
+            Bucket:
+              Ref: AphasiaAudioTranscripts
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                - Name: suffix
+                  Value: .json
+      Policies:
+      - AWSLambdaBasicExecutionRole
+      - arn:aws-cn:iam::aws:policy/AmazonDynamoDBFullAccess
+      - arn:aws-cn:iam::aws:policy/AmazonS3FullAccess
+      - Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - bedrock:ListFoundationModels
+          - bedrock:InvokeModel
+          Resource: '*'
+    Metadata:
+      SamResourceId: ParseAphasiaAudioTranscript
+  LatestBoto3Layer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: LatestBoto3Layer
+      CompatibleRuntimes:
+      - python3.11
+    Metadata:
+      BuildMethod: python3.11
+      SamResourceId: LatestBoto3Layer
+  AphasiaAudioUploads:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: aphasia-audio-uploads
+  AphasiaAudioTranscripts:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: aphasia-audio-transcripts
+  AphasiaSpeechAnalyticsReports:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: aphasia-speech-analytics-reports
